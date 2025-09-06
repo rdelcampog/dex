@@ -306,6 +306,8 @@ type idTokenClaims struct {
 	PreferredUsername string `json:"preferred_username,omitempty"`
 
 	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
+
+	Scope string `json:"scope,omitempty"`
 }
 
 type federatedIDClaims struct {
@@ -391,6 +393,7 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+		Scope:    strings.Join(scopes, " "),
 	}
 
 	if accessToken != "" {
