@@ -93,6 +93,16 @@ func (c Config) Validate() error {
 
 type password storage.Password
 
+// CustomScope represents a custom OAuth2 scope that can be configured in Dex
+type CustomScope struct {
+	// ID is the scope identifier (e.g., "api/user:read")
+	ID string `json:"id"`
+	// Name is a human-readable name for the scope
+	Name string `json:"name"`
+	// Description provides details about what the scope allows
+	Description string `json:"description"`
+}
+
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
 		Email       string `json:"email"`
@@ -149,6 +159,10 @@ type OAuth2 struct {
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
 	// This is the connector that can be used for password grant
 	PasswordConnector string `json:"passwordConnector"`
+	
+	// CustomScopes allow defining additional OAuth2 scopes beyond the standard ones.
+	// These scopes can be requested by clients and will be included in tokens.
+	CustomScopes []CustomScope `json:"customScopes"`
 }
 
 // Web is the config format for the HTTP server.

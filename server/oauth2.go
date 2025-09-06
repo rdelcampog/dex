@@ -175,6 +175,16 @@ func parseScopes(scopes []string) connector.Scopes {
 	return s
 }
 
+// isCustomScope checks if the given scope is in the list of configured custom scopes
+func (s *Server) isCustomScope(scope string) bool {
+	for _, customScope := range s.customScopes {
+		if customScope == scope {
+			return true
+		}
+	}
+	return false
+}
+
 // Determine the signature algorithm for a JWT.
 func signatureAlgorithm(jwk *jose.JSONWebKey) (alg jose.SignatureAlgorithm, err error) {
 	if jwk.Key == nil {
@@ -532,6 +542,12 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 			hasOpenIDScope = true
 		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups, scopeFederatedID:
 		default:
+			// Check if it's a custom scope
+			if s.isCustomScope(scope) {
+				// Custom scope is valid, continue to next scope
+				continue
+			}
+			
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)

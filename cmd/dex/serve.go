@@ -290,6 +290,13 @@ func runServe(options serveOptions) error {
 
 	healthChecker := gosundheit.New()
 
+	// Extract custom scope IDs
+	customScopes := make([]string, len(c.OAuth2.CustomScopes))
+	for i, scope := range c.OAuth2.CustomScopes {
+		customScopes[i] = scope.ID
+		logger.Info("config custom scope", "scope_id", scope.ID, "scope_name", scope.Name)
+	}
+
 	serverConfig := server.Config{
 		AllowedGrantTypes:          c.OAuth2.GrantTypes,
 		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
@@ -307,6 +314,7 @@ func runServe(options serveOptions) error {
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
+		CustomScopes:               customScopes,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

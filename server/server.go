@@ -123,6 +123,9 @@ type Config struct {
 	// If enabled, the server will continue starting even if some connectors fail to initialize.
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
+
+	// CustomScopes allow defining additional OAuth2 scopes beyond the standard ones.
+	CustomScopes []string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -200,6 +203,9 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+	
+	// customScopes stores the configured custom OAuth2 scopes
+	customScopes []string
 }
 
 // NewServer constructs a server from the provided config.
@@ -316,6 +322,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+		customScopes:           c.CustomScopes,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
