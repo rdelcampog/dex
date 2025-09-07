@@ -355,6 +355,12 @@ func getAudience(clientID string, scopes []string) audience {
 }
 
 func genSubject(userID string, connID string) (string, error) {
+	// if connID is empty, like when using the local password connector, don't include connID in subject and return
+	// userID as is.
+	if connID == "" {
+		return userID, nil
+	}
+
 	sub := &internal.IDTokenSubject{
 		UserId: userID,
 		ConnId: connID,
@@ -382,7 +388,13 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
-	subjectString, err := genSubject(claims.UserID, connID)
+	// If the client is the local password connector, we don't want to include the connector ID in the subject.
+	subConnID := connID
+	if connID == LocalConnector {
+		subConnID = ""
+	}
+
+	subjectString, err := genSubject(claims.UserID, subConnID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)

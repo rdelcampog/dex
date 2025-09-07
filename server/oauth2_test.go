@@ -45,6 +45,10 @@ func TestGetSubject(t *testing.T) {
 	sub, err := genSubject("foo", "bar")
 	require.Equal(t, "CgNmb28SA2Jhcg", sub)
 	require.NoError(t, err)
+
+	sub, err = genSubject("foo", "")
+	require.Equal(t, "foo", sub)
+	require.NoError(t, err)
 }
 
 func TestParseAuthorizationRequest(t *testing.T) {
