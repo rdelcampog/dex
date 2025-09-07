@@ -203,7 +203,7 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
-	
+
 	// customScopes stores the configured custom OAuth2 scopes
 	customScopes []string
 }
@@ -245,6 +245,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		grantTypeRefreshToken:      true,
 		grantTypeDeviceCode:        true,
 		grantTypeTokenExchange:     true,
+		grantTypeClientCredentials: true,
 	}
 	supportedRes := make(map[string]bool)
 

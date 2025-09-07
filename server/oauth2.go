@@ -133,6 +133,7 @@ const (
 	grantTypePassword          = "password"
 	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
 	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
+	grantTypeClientCredentials = "client_credentials"
 )
 
 const (
@@ -550,7 +551,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 				// Custom scope is valid, continue to next scope
 				continue
 			}
-			
+
 			peerID, ok := parseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)

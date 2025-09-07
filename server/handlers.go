@@ -864,6 +864,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	case grantTypeTokenExchange:
 		s.withClientFromStorage(w, r, s.handleTokenExchange)
+	case grantTypeClientCredentials:
+		s.withClientFromStorage(w, r, s.handleClientCredentialsGrant)
 	default:
 		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
 	}
@@ -1344,6 +1346,91 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
+	s.writeAccessToken(w, resp)
+}
+
+func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		s.tokenErrHelper(w, errInvalidRequest, "Couldn't parse data", http.StatusBadRequest)
+		return
+	}
+	q := r.Form
+
+	// Some clients, like the old go-oidc, provide extra whitespace. Tolerate this.
+	scopes := strings.Fields(q.Get("scope"))
+
+	// Parse the scopes if they are passed
+	var (
+		unrecognized  []string
+		invalidScopes []string
+	)
+	for _, scope := range scopes {
+		switch scope {
+		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups, scopeFederatedID:
+		default:
+			// Check if it's a custom scope
+			if s.isCustomScope(scope) {
+				// Custom scope is valid, continue to next scope
+				continue
+			}
+
+			peerID, ok := parseCrossClientScope(scope)
+			if !ok {
+				unrecognized = append(unrecognized, scope)
+				continue
+			}
+
+			isTrusted, err := s.validateCrossClientTrust(ctx, client.ID, peerID)
+			if err != nil {
+				s.tokenErrHelper(w, errInvalidClient, fmt.Sprintf("Error validating cross client trust %v.", err), http.StatusBadRequest)
+				return
+			}
+			if !isTrusted {
+				invalidScopes = append(invalidScopes, scope)
+			}
+		}
+	}
+	if len(unrecognized) > 0 {
+		s.tokenErrHelper(w, errInvalidRequest, fmt.Sprintf("Unrecognized scope(s) %q", unrecognized), http.StatusBadRequest)
+		return
+	}
+	if len(invalidScopes) > 0 {
+		s.tokenErrHelper(w, errInvalidRequest, fmt.Sprintf("Client can't request scope(s) %q", invalidScopes), http.StatusBadRequest)
+		return
+	}
+
+	// For client credentials flow, the client is also the subject
+	// Create minimal claims based on the client
+	claims := storage.Claims{
+		UserID:            client.ID,
+		Username:          client.ID,
+		PreferredUsername: client.ID,
+		Email:             "",
+		EmailVerified:     false,
+		Groups:            []string{},
+	}
+
+	// Client credentials flow doesn't use nonce or connector
+	nonce := ""
+	connID := ""
+
+	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "client credentials grant failed to create new access token", "err", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	// Client credentials flow typically doesn't issue ID tokens or refresh tokens
+	// as it's meant for machine-to-machine authentication
+	resp := &accessTokenResponse{
+		AccessToken: accessToken,
+		TokenType:   "bearer",
+		ExpiresIn:   int(expiry.Sub(s.now()).Seconds()),
+		Scope:       strings.Join(scopes, " "),
+	}
 	s.writeAccessToken(w, resp)
 }
 

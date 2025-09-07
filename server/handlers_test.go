@@ -802,3 +802,74 @@ func setNonEmpty(vals url.Values, key, value string) {
 		vals.Set(key, value)
 	}
 }
+
+func TestHandleClientCredentialsGrant(t *testing.T) {
+	tests := []struct {
+		name         string
+		scope        string
+		expectedCode int
+	}{
+		{
+			"valid-request-no-scope",
+			"",
+			http.StatusOK,
+		},
+		{
+			"valid-request-with-scope",
+			"email profile",
+			http.StatusOK,
+		},
+		{
+			"invalid-scope",
+			"openid",
+			http.StatusBadRequest,
+		},
+		{
+			"unrecognized-scope",
+			"invalid_scope",
+			http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Storage.CreateClient(ctx, storage.Client{
+					ID:     "client_1",
+					Secret: "secret_1",
+				})
+			})
+			defer httpServer.Close()
+
+			vals := make(url.Values)
+			vals.Set("grant_type", grantTypeClientCredentials)
+			setNonEmpty(vals, "scope", tc.scope)
+			vals.Set("client_id", "client_1")
+			vals.Set("client_secret", "secret_1")
+
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+			s.handleToken(rr, req)
+
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+			require.Equal(t, "application/json", rr.Result().Header.Get("content-type"))
+
+			if tc.expectedCode == http.StatusOK {
+				var res accessTokenResponse
+				err := json.NewDecoder(rr.Result().Body).Decode(&res)
+				require.NoError(t, err)
+				require.Equal(t, "bearer", res.TokenType)
+				require.NotEmpty(t, res.AccessToken)
+				require.Greater(t, res.ExpiresIn, 0)
+				require.Empty(t, res.IDToken)      // Client credentials should not return ID token
+				require.Empty(t, res.RefreshToken) // Client credentials should not return refresh token
+				if tc.scope != "" {
+					require.Equal(t, tc.scope, res.Scope)
+				}
+			}
+		})
+	}
+}
